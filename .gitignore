@@ -1,0 +1,21 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Training artifacts
+data/
+outputs/
+wandb/
+.cache/
+*.jsonl
+.env
+
+# Contains secrets once filled in with real values — see docs/VERTEX.md
+worker-pool-spec.yaml

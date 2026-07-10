@@ -1,0 +1,53 @@
+[project]
+name = "wav2vec-mos"
+version = "0.1.0"
+description = "Wav2Vec2-BERT CTC fine-tuning and inference for Moore ASR"
+readme = "README.md"
+requires-python = "==3.12.*"
+authors = [
+    { name = "MNIKIEMA", email = "nikiemamahamadi01@gmail.com" }
+]
+dependencies = [
+    "torch==2.11",
+    "torchaudio==2.11",
+    "torchcodec==0.13",
+    "transformers>=4.57.6",
+    "datasets>=2.20",
+    "safetensors>=0.4",
+    "accelerate>=0.34",
+    "jiwer>=3.0",
+    "wandb",
+    "python-dotenv>=1.0",
+    "huggingface-hub>=0.24",
+    "nvidia-cuda-nvrtc-cu12; sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff", "ty"]
+
+[project.scripts]
+wav2vec-mos = "wav2vec_mos.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.11.11,<0.12.0"]
+build-backend = "uv_build"
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+torchaudio = { index = "pytorch-cu128" }
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "UP", "I"]
+fixable = ["ALL"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/*.py" = ["E501"]
