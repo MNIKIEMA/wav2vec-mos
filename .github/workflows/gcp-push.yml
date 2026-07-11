@@ -1,0 +1,51 @@
+name: Push image to Artifact Registry
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Tag to push in addition to the commit SHA (e.g. v0.1.0)"
+        required: true
+        default: "latest"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${{ vars.GCP_REGION }}-docker.pkg.dev" --quiet
+
+      - name: Set image URIs
+        id: image
+        run: |
+          REPO="${{ vars.GCP_ARTIFACT_REPO }}"
+          BASE="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${REPO:-wav2vec-mos}/wav2vec-mos"
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          echo "sha_tag=$BASE:${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "version_tag=$BASE:${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+
+      - name: Build image
+        run: |
+          docker build \
+            -t "${{ steps.image.outputs.sha_tag }}" \
+            -t "${{ steps.image.outputs.version_tag }}" \
+            .
+
+      - name: Push image
+        run: |
+          docker push "${{ steps.image.outputs.sha_tag }}"
+          docker push "${{ steps.image.outputs.version_tag }}"

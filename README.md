@@ -57,6 +57,7 @@ docker run --gpus all --rm \
 
 ## Vertex AI Training
 
-See [VERTEX.md](VERTEX.md) for mirroring the image to Artifact Registry,
-picking a region/accelerator, a `worker-pool-spec.yaml` example, and a GPU
-smoke test.
+See [VERTEX.md](docs/VERTEX.md) for mirroring the image to Artifact Registry
+(manually or via the [`gcp-push.yml`](.github/workflows/gcp-push.yml) GitHub
+Actions workflow), picking a region/accelerator, a `worker-pool-spec.yaml`
+example, and a GPU smoke test.

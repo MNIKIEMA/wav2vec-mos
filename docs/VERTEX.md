@@ -20,6 +20,68 @@ docker push REGION-docker.pkg.dev/PROJECT_ID/wav2vec-mos/wav2vec-mos:v0.1.0
 Prefer the versioned tag over `latest` so a job always references a known,
 reproducible image.
 
+## 0. CI: Push via GitHub Actions
+
+[`.github/workflows/gcp-push.yml`](../.github/workflows/gcp-push.yml) builds
+the image and pushes it to Artifact Registry. It's manual
+(`workflow_dispatch`) — trigger it from the **Actions** tab and supply the
+tag to publish (e.g. `v0.1.0`); it also always pushes a `:<short-sha>` tag.
+
+It authenticates with Workload Identity Federation — no service account key
+is stored in GitHub. One-time setup:
+
+```bash
+PROJECT_ID=your-project-id
+REGION=us-central1
+REPO=your-github-org/wav2vec-mos   # exact "owner/repo"
+
+gcloud iam service-accounts create gha-artifact-pusher \
+  --project="${PROJECT_ID}"
+
+gcloud artifacts repositories add-iam-policy-binding wav2vec-mos \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --member="serviceAccount:gha-artifact-pusher@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/artifactregistry.writer"
+
+gcloud iam workload-identity-pools create github \
+  --project="${PROJECT_ID}" \
+  --location=global
+
+gcloud iam workload-identity-pools providers create-oidc github \
+  --project="${PROJECT_ID}" \
+  --location=global \
+  --workload-identity-pool=github \
+  --issuer-uri="https://token.actions.githubusercontent.com" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
+  --attribute-condition="attribute.repository == '${REPO}'"
+
+gcloud iam service-accounts add-iam-policy-binding \
+  "gha-artifact-pusher@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --project="${PROJECT_ID}" \
+  --role="roles/iam.workloadIdentityUser" \
+  --member="principalSet://iam.googleapis.com/projects/$(gcloud projects describe ${PROJECT_ID} --format='value(projectNumber)')/locations/global/workloadIdentityPools/github/attribute.repository/${REPO}"
+```
+
+Then set these as **repository variables** (Settings > Secrets and
+variables > Actions > Variables — not secrets, none of these are sensitive):
+
+| Variable | Example |
+| --- | --- |
+| `GCP_PROJECT_ID` | `your-project-id` |
+| `GCP_REGION` | `us-central1` |
+| `GCP_ARTIFACT_REPO` | `wav2vec-mos` |
+| `GCP_SERVICE_ACCOUNT` | `gha-artifact-pusher@your-project-id.iam.gserviceaccount.com` |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | `projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github/providers/github` |
+
+Get the full provider resource name with:
+
+```bash
+gcloud iam workload-identity-pools providers describe github \
+  --project="${PROJECT_ID}" --location=global \
+  --workload-identity-pool=github --format="value(name)"
+```
+
 ## 1. Choose a Region
 
 Custom Jobs run in one region, and GPU accelerator types are only available
