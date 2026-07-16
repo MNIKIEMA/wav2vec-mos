@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-uv run wav2vec-mos infer \
+uv run --no-sync wav2vec-mos infer \
     --model_name_or_path outputs/wav2vec-mos \
     --dataset burkimbia/asr-benchmark-public \
     --dataset_config default \

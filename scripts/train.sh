@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-uv run wav2vec-mos train \
+uv run --no-sync wav2vec-mos train \
     --model_name_or_path facebook/w2v-bert-2.0 \
     --dataset burkimbia/speech-dataset-processed \
     --dataset_config "" \

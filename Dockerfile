@@ -31,6 +31,10 @@ RUN apt-get update \
 RUN curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh \
     && ln -sf /root/.local/bin/uv /usr/local/bin/uv
 
+# gsutil for syncing outputs/ to GCS during training (see worker-pool-spec.yaml);
+# picks up credentials from the VM's metadata server automatically.
+RUN pip install --no-cache-dir gsutil
+
 WORKDIR /workspace/wav2vec-mos
 
 COPY pyproject.toml uv.lock README.md ./
