@@ -48,6 +48,7 @@ class Wav2VecConfig:
     eval_split: str = "test"
     text_column: str = "text"
     num_train_epochs: int = 10
+    max_steps: int = -1
     per_device_train_batch_size: int = 16
     gradient_accumulation_steps: int = 2
     learning_rate: float = 5e-5
@@ -264,6 +265,7 @@ def train(cfg: Wav2VecConfig) -> None:
         gradient_accumulation_steps=cfg.gradient_accumulation_steps,
         eval_strategy="steps",
         num_train_epochs=cfg.num_train_epochs,
+        max_steps=cfg.max_steps,
         gradient_checkpointing=cfg.gradient_checkpointing,
         fp16=cfg.fp16,
         save_steps=cfg.save_steps,

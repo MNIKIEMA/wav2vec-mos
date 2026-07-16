@@ -31,9 +31,9 @@ It authenticates with Workload Identity Federation — no service account key
 is stored in GitHub. One-time setup:
 
 ```bash
-PROJECT_ID=your-project-id
+PROJECT_ID=bia-speech-training
 REGION=us-central1
-REPO=your-github-org/wav2vec-mos   # exact "owner/repo"
+REPO=MNIKIEMA/wav2vec-mos   # exact "owner/repo"
 
 gcloud iam service-accounts create gha-artifact-pusher \
   --project="${PROJECT_ID}"
@@ -89,11 +89,19 @@ in a subset of regions — and only if your project has quota there. Pick the
 region *before* mirroring the image so you push into the matching Artifact
 Registry location.
 
-| Accelerator | Example regions |
-| --- | --- |
-| `NVIDIA_L4` | `us-central1`, `us-west1`, `europe-west4` |
-| `NVIDIA_TESLA_A100` | `us-central1`, `us-west1`, `europe-west4` |
-| `NVIDIA_H100_80GB` | `us-central1`, `us-east4`, `europe-west4` |
+| Accelerator | Machine type | Example regions |
+| --- | --- | --- |
+| `NVIDIA_L4` | `g2-standard-*` | `us-central1`, `us-west1`, `europe-west4` |
+| `NVIDIA_TESLA_A100` (40GB) | `a2-highgpu-*` | `us-central1`, `us-west1`, `europe-west4` |
+| `NVIDIA_A100_80GB` | `a2-ultragpu-*` | `us-central1`, `us-west1`, `europe-west4` |
+| `NVIDIA_H100_80GB` | `a3-highgpu-*` | `us-central1`, `us-east4`, `europe-west4` |
+
+`NVIDIA_TESLA_A100` (40GB) and `NVIDIA_A100_80GB` are **separate quota
+metrics** (`custom_model_training_nvidia_a100_gpus` vs.
+`custom_model_training_nvidia_a100_80gb_gpus`) — getting one approved does
+not cover the other. Match the accelerator type in the quota request to the
+`acceleratorType` actually used in `worker-pool-spec.yaml`, or the job will
+still fail with `RESOURCE_EXHAUSTED` even after approval.
 
 Verify quota before submitting a job — accelerator quota is granted per
 region and defaults to 0:
@@ -102,7 +110,7 @@ region and defaults to 0:
 gcloud alpha services quota list \
   --service=aiplatform.googleapis.com \
   --consumer=projects/PROJECT_ID \
-  --filter="metric:custom_model_training_nvidia_a100_gpus"
+  --filter="metric:custom_model_training_nvidia_a100_80gb_gpus"
 ```
 
 Request a quota increase in the console (**IAM & Admin > Quotas**) if it's 0.
@@ -118,8 +126,8 @@ the job ends. The image's own `CMD ["bash"]` is a no-op — override
 ```yaml
 workerPoolSpecs:
   - machineSpec:
-      machineType: a2-highgpu-1g
-      acceleratorType: NVIDIA_TESLA_A100
+      machineType: a2-ultragpu-1g
+      acceleratorType: NVIDIA_A100_80GB
       acceleratorCount: 1
     replicaCount: 1
     diskSpec:
@@ -132,7 +140,6 @@ workerPoolSpecs:
         - |
           set -e
           cd /workspace/wav2vec-mos
-          gsutil -m rsync -r gs://BUCKET/data data
           ( while true; do sleep 300; gsutil -m rsync -r outputs/ gs://BUCKET/outputs/ || true; done ) &
           scripts/train.sh
           gsutil -m rsync -r outputs/ gs://BUCKET/outputs/
@@ -152,6 +159,15 @@ gcloud ai custom-jobs create \
   --config=worker-pool-spec.yaml
 ```
 
+List jobs to find the ID, and cancel one that's stuck (e.g. `PENDING` too
+long due to GPU capacity, or a bad run):
+
+```bash
+gcloud ai custom-jobs list --region=REGION --sort-by="~createTime" --limit=5
+
+gcloud ai custom-jobs cancel JOB_ID --region=REGION
+```
+
 Swap the `args` block to run inference instead: `scripts/infer.sh`.
 
 > Treat `HF_TOKEN` / `WANDB_API_KEY` the same way you'd treat any secret in a
@@ -166,9 +182,22 @@ once the job ends. `data/`, `outputs/`, `.cache/huggingface`, and `wandb/`
 all live on that ephemeral disk, so a GCS bucket has to stand in for
 persistent storage.
 
+Create the bucket once, in the same region as the Custom Job so `gsutil
+rsync` traffic stays free (see egress notes above):
+
+```bash
+gcloud storage buckets create gs://BUCKET \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --uniform-bucket-level-access
+```
+
 **Approach used above — `gsutil rsync`, no image changes:**
 
-- Pull the dataset in at job start: `gsutil -m rsync -r gs://BUCKET/data data`
+- `scripts/train.sh` loads the dataset straight from the Hugging Face Hub
+  via `datasets.load_dataset` (see `--dataset` in `scripts/train.sh`), so
+  there's no `data/` pull step — only `outputs/` needs to round-trip
+  through GCS.
 - Push `outputs/` out when training finishes.
 - Run a background loop that rsyncs `outputs/` every few minutes so
   checkpoints survive a preempted or killed job, not just a clean exit.
