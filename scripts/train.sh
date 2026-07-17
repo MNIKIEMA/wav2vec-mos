@@ -3,7 +3,7 @@ set -euo pipefail
 
 uv run --no-sync wav2vec-mos train \
     --model_name_or_path facebook/w2v-bert-2.0 \
-    --dataset madoss/wav2vec-finetuned \
+    --dataset burkimbia/speech-cleaned \
     --dataset_config "" \
     --length_column_name duration \
     --output_dir outputs/wav2vec-mos \
