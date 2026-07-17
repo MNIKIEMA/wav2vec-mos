@@ -21,19 +21,27 @@ ENV PYTHONUNBUFFERED=1 \
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        apt-transport-https \
         build-essential \
         ca-certificates \
         curl \
         ffmpeg \
         git \
+        gnupg \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh \
     && ln -sf /root/.local/bin/uv /usr/local/bin/uv
 
-# gsutil for syncing outputs/ to GCS during training (see worker-pool-spec.yaml);
-# picks up credentials from the VM's metadata server automatically.
-RUN uv pip install --system --break-system-packages --no-cache gsutil
+# gsutil (via the full Cloud SDK, not the standalone pip package) for syncing
+# outputs/ to GCS during training (see worker-pool-spec.yaml); the apt-packaged
+# CLI is what reliably auto-discovers credentials from the VM's metadata server.
+RUN curl -sSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" \
+        > /etc/apt/sources.list.d/google-cloud-sdk.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends google-cloud-cli \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace/wav2vec-mos
 

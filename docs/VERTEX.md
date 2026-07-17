@@ -124,6 +124,7 @@ the job ends. The image's own `CMD ["bash"]` is a no-op — override
 `worker-pool-spec.yaml`:
 
 ```yaml
+serviceAccount: wav2vec-mos-training@PROJECT_ID.iam.gserviceaccount.com
 workerPoolSpecs:
   - machineSpec:
       machineType: a2-ultragpu-1g
@@ -191,6 +192,29 @@ gcloud storage buckets create gs://BUCKET \
   --location="${REGION}" \
   --uniform-bucket-level-access
 ```
+
+Custom Jobs run as the project's **default Compute Engine service account**
+unless `serviceAccount` is set in the worker pool spec — and on newer
+projects that default SA has no IAM roles granted at all, so `gsutil rsync`
+fails with `401 Anonymous caller does not have storage.objects.list access`
+(the standalone `gsutil` also fails to auto-detect metadata-server
+credentials at all unless it's the apt-packaged Cloud SDK build, which is
+why the Dockerfile installs `google-cloud-cli` rather than `pip install
+gsutil`). Create a dedicated service account scoped to just this bucket
+instead of widening the default SA's permissions:
+
+```bash
+gcloud iam service-accounts create wav2vec-mos-training \
+  --project="${PROJECT_ID}" \
+  --display-name="wav2vec-mos training job (GCS outputs sync)"
+
+gcloud storage buckets add-iam-policy-binding gs://BUCKET \
+  --member="serviceAccount:wav2vec-mos-training@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/storage.objectAdmin"
+```
+
+Then set `serviceAccount: wav2vec-mos-training@PROJECT_ID.iam.gserviceaccount.com`
+at the top of `worker-pool-spec.yaml` (as shown above).
 
 **Approach used above — `gsutil rsync`, no image changes:**
 
