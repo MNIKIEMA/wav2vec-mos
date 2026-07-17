@@ -33,7 +33,7 @@ RUN curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh \
 
 # gsutil for syncing outputs/ to GCS during training (see worker-pool-spec.yaml);
 # picks up credentials from the VM's metadata server automatically.
-RUN uv pip install --system --no-cache gsutil
+RUN uv pip install --system --break-system-packages --no-cache gsutil
 
 WORKDIR /workspace/wav2vec-mos
 
