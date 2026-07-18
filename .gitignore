@@ -19,3 +19,4 @@ wandb/
 
 # Contains secrets once filled in with real values — see docs/VERTEX.md
 worker-pool-spec.yaml
+worker-pool-spec-infer.yaml
