@@ -8,7 +8,7 @@ def main() -> None:
     load_dotenv()
 
     parser = argparse.ArgumentParser(prog="wav2vec-mos", add_help=False)
-    parser.add_argument("command", choices=["train", "infer"])
+    parser.add_argument("command", choices=["train", "infer", "export-onnx"])
     args, remaining = parser.parse_known_args()
 
     if args.command == "train":
@@ -16,6 +16,11 @@ def main() -> None:
 
         (cfg,) = HfArgumentParser(Wav2VecConfig).parse_args_into_dataclasses(remaining)
         train(cfg)
+    elif args.command == "export-onnx":
+        from wav2vec_mos.export_onnx import Wav2VecExportConfig, export_onnx
+
+        (cfg,) = HfArgumentParser(Wav2VecExportConfig).parse_args_into_dataclasses(remaining)
+        export_onnx(cfg)
     else:
         from wav2vec_mos.infer import Wav2VecInferConfig, infer
 

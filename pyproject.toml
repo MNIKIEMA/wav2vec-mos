@@ -23,6 +23,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+onnx = ["onnx>=1.17", "onnxscript>=0.3", "onnxruntime>=1.20"]
+
+[dependency-groups]
 dev = ["pytest", "ruff", "ty"]
 
 [project.scripts]
@@ -31,6 +34,9 @@ wav2vec-mos = "wav2vec_mos.cli:main"
 [build-system]
 requires = ["uv_build>=0.11.11,<0.12.0"]
 build-backend = "uv_build"
+
+[tool.uv]
+exclude-newer = "7 days"
 
 [[tool.uv.index]]
 name = "pytorch-cu128"

@@ -1,6 +1,7 @@
 import json
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -22,6 +23,7 @@ class Wav2VecInferConfig:
     device: str = "cuda"
     sampling_rate: int = 16000
     min_audio_seconds: float = 0.1
+    onnx: bool = False
 
 
 def _extract_audio_array(audio: dict) -> np.ndarray:
@@ -31,27 +33,62 @@ def _extract_audio_array(audio: dict) -> np.ndarray:
     return np.asarray(array, dtype=np.float32)
 
 
-def _decode_batch(model, processor, audio_arrays: list, device: str) -> list[str]:
-    inputs = processor(
-        audio_arrays,
-        sampling_rate=16000,
-        return_tensors="pt",
-        padding=True,
-    ).to(device)
-    with torch.inference_mode():
-        logits = model(**inputs).logits
-    pred_ids = logits.argmax(dim=-1)
-    return processor.batch_decode(pred_ids)
+def _torch_predictor(cfg: Wav2VecInferConfig, processor, device: str):
+    from transformers import Wav2Vec2BertForCTC
+
+    model = Wav2Vec2BertForCTC.from_pretrained(cfg.model_name_or_path, torch_dtype=torch.float32)
+    model = model.to(device).eval()
+
+    def predict(audio_arrays: list):
+        inputs = processor(audio_arrays, sampling_rate=16000, return_tensors="pt", padding=True).to(device)
+        with torch.inference_mode():
+            return model(**inputs).logits.argmax(dim=-1)
+
+    return predict
+
+
+def _onnx_predictor(cfg: Wav2VecInferConfig, processor, device: str):
+    import onnxruntime as ort
+
+    model_path = Path(cfg.model_name_or_path) / "model.onnx"
+    if not model_path.exists():
+        from huggingface_hub import snapshot_download
+
+        model_path = (
+            Path(snapshot_download(cfg.model_name_or_path, allow_patterns=["model.onnx*"])) / "model.onnx"
+        )
+
+    providers = ["CPUExecutionProvider"]
+    if device == "cuda" and "CUDAExecutionProvider" in ort.get_available_providers():
+        providers.insert(0, "CUDAExecutionProvider")
+    session = ort.InferenceSession(str(model_path), providers=providers)
+
+    def predict(audio_arrays: list):
+        inputs = processor(audio_arrays, sampling_rate=16000, return_tensors="np", padding=True)
+        (logits,) = session.run(
+            None,
+            {
+                "input_features": inputs["input_features"].astype(np.float32),
+                "attention_mask": inputs["attention_mask"].astype(np.int64),
+            },
+        )
+        return logits.argmax(axis=-1)
+
+    return predict
+
+
+def _decode_batch(predict, processor, audio_arrays: list) -> list[str]:
+    return processor.batch_decode(predict(audio_arrays))
 
 
 def infer(cfg: Wav2VecInferConfig) -> None:
-    from transformers import AutoProcessor, Wav2Vec2BertForCTC
+    from transformers import AutoProcessor
 
     device = cfg.device if torch.cuda.is_available() else "cpu"
-    dtype = torch.float32
 
     processor = AutoProcessor.from_pretrained(cfg.model_name_or_path)
-    model = Wav2Vec2BertForCTC.from_pretrained(cfg.model_name_or_path, torch_dtype=dtype).to(device).eval()
+    make_predictor = _onnx_predictor if cfg.onnx else _torch_predictor
+    predict = make_predictor(cfg, processor, device)
 
     out_stream = open(cfg.output_file, "w", encoding="utf-8") if cfg.output_file else None
 
@@ -69,8 +106,8 @@ def infer(cfg: Wav2VecInferConfig) -> None:
                 wav = torchaudio.functional.resample(wav, sr, 16000)
             audio_array = wav.squeeze(0).numpy()
             audio_duration_s = len(audio_array) / 16000
-            with profile_inference(audio_duration_s) as prof:
-                results = _decode_batch(model, processor, [audio_array], device)
+            with profile_inference(audio_duration_s, track_gpu=not cfg.onnx) as prof:
+                results = _decode_batch(predict, processor, [audio_array])
             _emit(
                 {
                     "transcription": results[0],
@@ -111,8 +148,8 @@ def infer(cfg: Wav2VecInferConfig) -> None:
                 continue
 
             audio_duration_s = sum(len(a) for a in audio_arrays) / cfg.sampling_rate
-            with profile_inference(audio_duration_s) as prof:
-                texts = _decode_batch(model, processor, audio_arrays, device)
+            with profile_inference(audio_duration_s, track_gpu=not cfg.onnx) as prof:
+                texts = _decode_batch(predict, processor, audio_arrays)
             for record, text in zip(records, texts, strict=True):
                 record.update(
                     {

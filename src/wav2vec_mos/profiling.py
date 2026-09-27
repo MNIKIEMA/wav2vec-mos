@@ -14,10 +14,16 @@ class InferenceProfile:
 
 
 @contextmanager
-def profile_inference(audio_duration_s: float | None = None) -> Iterator[InferenceProfile]:
-    """Measure wall-clock latency, RTF, and peak GPU memory around an inference call."""
+def profile_inference(
+    audio_duration_s: float | None = None, track_gpu: bool = True
+) -> Iterator[InferenceProfile]:
+    """Measure wall-clock latency, RTF, and peak GPU memory around an inference call.
+
+    Peak memory comes from the torch CUDA allocator, so pass ``track_gpu=False`` for runtimes
+    (e.g. onnxruntime) whose allocations torch cannot see.
+    """
     prof = InferenceProfile()
-    has_cuda = torch.cuda.is_available()
+    has_cuda = track_gpu and torch.cuda.is_available()
     if has_cuda:
         torch.cuda.reset_peak_memory_stats()
     t0 = time.perf_counter()
