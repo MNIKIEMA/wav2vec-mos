@@ -40,6 +40,10 @@ Override any field on the command line, e.g.:
 uv sync --extra onnx
 uv run wav2vec-mos export-onnx --model_name_or_path burkimbia/wav2vec-mos --output_dir onnx
 ./scripts/infer.sh --model_name_or_path onnx --onnx
+# another file in the same folder, e.g. the int8 export:
+./scripts/infer.sh --model_name_or_path onnx --onnx --onnx_file model_int8.onnx
+# straight from the Hub:
+./scripts/infer.sh --onnx --onnx_file onnx/model_int8.onnx
 ```
 
 Add `--quantize` to write int8 weights instead (dynamic quantization of the MatMuls: ~4× smaller
