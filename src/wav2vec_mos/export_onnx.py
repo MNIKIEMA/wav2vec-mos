@@ -20,7 +20,11 @@ def export_onnx(cfg: Wav2VecExportConfig) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     processor = AutoProcessor.from_pretrained(cfg.model_name_or_path)
-    model = Wav2Vec2BertForCTC.from_pretrained(cfg.model_name_or_path, torch_dtype=torch.float32).eval()
+    # Eager attention: transformers >= 5.16 defaults this model to SDPA, whose output reshape is a
+    # .view() on a transposed tensor that the dynamo exporter rejects. Same math, so same ONNX output.
+    model = Wav2Vec2BertForCTC.from_pretrained(
+        cfg.model_name_or_path, torch_dtype=torch.float32, attn_implementation="eager"
+    ).eval()
 
     # The feature extractor and CTC decoding stay outside the graph; only the network is exported.
     feature_size = processor.feature_extractor.feature_size * processor.feature_extractor.stride
