@@ -1,3 +1,4 @@
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -9,6 +10,7 @@ class Wav2VecExportConfig:
     model_name_or_path: str
     output_dir: str = "onnx"
     opset_version: int = 18
+    quantize: bool = False
 
 
 def export_onnx(cfg: Wav2VecExportConfig) -> None:
@@ -28,15 +30,35 @@ def export_onnx(cfg: Wav2VecExportConfig) -> None:
     attention_mask = torch.ones(2, 200, dtype=torch.long)
     attention_mask[1, 150:] = 0
 
-    torch.onnx.export(
-        model,
-        (input_features, attention_mask),
-        output_dir / "model.onnx",
-        input_names=["input_features", "attention_mask"],
-        output_names=["logits"],
-        opset_version=cfg.opset_version,
-        dynamic_shapes=({0: "batch", 1: "frames"}, {0: "batch", 1: "frames"}),
-        dynamo=True,
-    )
+    def _export(path: Path) -> None:
+        torch.onnx.export(
+            model,
+            (input_features, attention_mask),
+            path,
+            input_names=["input_features", "attention_mask"],
+            output_names=["logits"],
+            opset_version=cfg.opset_version,
+            dynamic_shapes=({0: "batch", 1: "frames"}, {0: "batch", 1: "frames"}),
+            dynamo=True,
+        )
+
+    if cfg.quantize:
+        from onnxruntime.quantization import QuantType, quantize_dynamic
+
+        # int8 weights, activations quantized on the fly. Only MatMul is quantized: it holds almost all
+        # the weights, and ConvInteger has poor kernel coverage in onnxruntime.
+        with tempfile.TemporaryDirectory() as tmp:
+            fp32_path = Path(tmp) / "model.onnx"
+            _export(fp32_path)
+            quantize_dynamic(
+                fp32_path,
+                output_dir / "model.onnx",
+                op_types_to_quantize=["MatMul"],
+                weight_type=QuantType.QInt8,
+            )
+    else:
+        _export(output_dir / "model.onnx")
+
     processor.save_pretrained(output_dir)
-    print(f"Exported ONNX model and processor to {output_dir}")
+    kind = "int8-quantized ONNX" if cfg.quantize else "ONNX"
+    print(f"Exported {kind} model and processor to {output_dir}")
