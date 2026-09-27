@@ -34,6 +34,18 @@ Override any field on the command line, e.g.:
 ./scripts/infer.sh --audio path/to/clip.wav
 ```
 
+### ONNX
+
+```bash
+uv sync --extra onnx
+uv run wav2vec-mos export-onnx --model_name_or_path burkimbia/wav2vec-mos --output_dir onnx
+./scripts/infer.sh --model_name_or_path onnx --onnx
+```
+
+Only the network is exported. Feature extraction and CTC decoding still run through the
+`transformers` processor (NumPy only, no torch needed). For GPU inference, install
+`onnxruntime-gpu` instead of `onnxruntime`.
+
 ## Docker
 
 Build:
