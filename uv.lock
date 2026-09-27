@@ -812,6 +812,20 @@ wheels = [
 ]
 
 [[package]]
+name = "onnxruntime-gpu"
+version = "1.30.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "flatbuffers" },
+    { name = "numpy" },
+    { name = "packaging" },
+    { name = "protobuf" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9e/80/d96143329dbe925d434b016c890a5caa785fac8e14a1570e5d6818b63545/onnxruntime_gpu-1.30.0-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:6acc0f4b3d5ac5f2984432faa59dd8fcce6775f8b43a7140afa0f322c7a703b1", size = 246685715, upload-time = "2026-09-10T16:13:10.1Z" },
+]
+
+[[package]]
 name = "onnxscript"
 version = "0.7.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1482,7 +1496,8 @@ dependencies = [
 [package.optional-dependencies]
 onnx = [
     { name = "onnx" },
-    { name = "onnxruntime" },
+    { name = "onnxruntime", marker = "platform_machine != 'x86_64' or sys_platform != 'linux'" },
+    { name = "onnxruntime-gpu", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "onnxscript" },
 ]
 
@@ -1501,7 +1516,8 @@ requires-dist = [
     { name = "jiwer", specifier = ">=3.0" },
     { name = "nvidia-cuda-nvrtc-cu12", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "onnx", marker = "extra == 'onnx'", specifier = ">=1.17" },
-    { name = "onnxruntime", marker = "extra == 'onnx'", specifier = ">=1.20" },
+    { name = "onnxruntime", marker = "(platform_machine != 'x86_64' and extra == 'onnx') or (sys_platform != 'linux' and extra == 'onnx')", specifier = ">=1.20" },
+    { name = "onnxruntime-gpu", marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'onnx'", specifier = ">=1.20" },
     { name = "onnxscript", marker = "extra == 'onnx'", specifier = ">=0.3" },
     { name = "python-dotenv", specifier = ">=1.0" },
     { name = "safetensors", specifier = ">=0.4" },
