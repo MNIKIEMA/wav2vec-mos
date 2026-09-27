@@ -42,6 +42,9 @@ uv run wav2vec-mos export-onnx --model_name_or_path burkimbia/wav2vec-mos --outp
 ./scripts/infer.sh --model_name_or_path onnx --onnx
 ```
 
+Add `--quantize` to write int8 weights instead (dynamic quantization of the MatMuls: ~4× smaller
+weights, usually faster on CPU; check WER against the fp32 export before relying on it).
+
 Only the network is exported. Feature extraction and CTC decoding still run through the
 `transformers` processor (NumPy only, no torch needed). For GPU inference, install
 `onnxruntime-gpu` instead of `onnxruntime`.

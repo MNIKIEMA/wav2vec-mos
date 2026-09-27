@@ -23,7 +23,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-onnx = ["onnx>=1.17", "onnxscript>=0.3", "onnxruntime>=1.20"]
+onnx = [
+    "onnx>=1.17",
+    "onnxscript>=0.3",
+    "onnxruntime-gpu>=1.20; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "onnxruntime>=1.20; sys_platform != 'linux' or platform_machine != 'x86_64'",
+]
 
 [dependency-groups]
 dev = ["pytest", "ruff", "ty"]
