@@ -24,6 +24,7 @@ class Wav2VecInferConfig:
     sampling_rate: int = 16000
     min_audio_seconds: float = 0.1
     onnx: bool = False
+    onnx_file: str = "model.onnx"
 
 
 def _extract_audio_array(audio: dict) -> np.ndarray:
@@ -50,13 +51,14 @@ def _torch_predictor(cfg: Wav2VecInferConfig, processor, device: str):
 def _onnx_predictor(cfg: Wav2VecInferConfig, processor, device: str):
     import onnxruntime as ort
 
-    model_path = Path(cfg.model_name_or_path) / "model.onnx"
+    # onnx_file is relative to model_name_or_path, e.g. "onnx/model_int8.onnx" on the Hub.
+    model_path = Path(cfg.model_name_or_path) / cfg.onnx_file
     if not model_path.exists():
         from huggingface_hub import snapshot_download
 
-        model_path = (
-            Path(snapshot_download(cfg.model_name_or_path, allow_patterns=["model.onnx*"])) / "model.onnx"
-        )
+        # The trailing * also fetches fp32 external data (model.onnx.data).
+        repo_dir = snapshot_download(cfg.model_name_or_path, allow_patterns=[f"{cfg.onnx_file}*"])
+        model_path = Path(repo_dir) / cfg.onnx_file
 
     providers = ["CPUExecutionProvider"]
     if device == "cuda" and "CUDAExecutionProvider" in ort.get_available_providers():
